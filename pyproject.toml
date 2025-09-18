@@ -1,0 +1,19 @@
+[project]
+name = "binary-social-network"
+version = "0.1.0"
+description = "Binary-only social network for PCs and AIs"
+readme = "README.md"
+authors = [{ name = "AI Assistant" }]
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+binary-social = "binary_social_network.cli:main"
+
+[build-system]
+requires = ["setuptools>=67"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+addopts = "-ra"

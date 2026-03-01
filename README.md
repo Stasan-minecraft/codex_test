@@ -9,6 +9,7 @@
 - ✅ **Codex first**: у списку після refresh моделі з `codex` піднімаються на початок.
 - ✅ **Кращий UI/UX**: темна тема, статус-бар, clear output/tokens, блокування кнопок під час запитів.
 - ✅ **Fallback на API key** якщо OAuth не налаштований.
+- ✅ **Фікс Windows crash**: прибрано несумісні type-annotations (`| None`), тому EXE більше не падає з `unsupported operand type(s) for |`.
 
 ## Швидкий старт (Windows)
 

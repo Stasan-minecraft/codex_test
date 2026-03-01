@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from tkinter import messagebox, scrolledtext, ttk
 from urllib import error, parse, request
+from typing import Any, Dict, List, Optional, Tuple
 
 API_BASE = "https://api.openai.com/v1"
 RESPONSES_URL = f"{API_BASE}/responses"
@@ -304,7 +305,7 @@ class CodexWindowsApp:
             self._set_busy(False)
 
 
-def _http_json(method: str, url: str, bearer: str, body: dict | None = None) -> dict:
+def _http_json(method: str, url: str, bearer: str, body: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     data = None if body is None else json.dumps(body).encode("utf-8")
     req = request.Request(url, data=data, method=method)
     req.add_header("Authorization", f"Bearer {bearer}")
@@ -322,7 +323,7 @@ def _http_json(method: str, url: str, bearer: str, body: dict | None = None) -> 
     return json.loads(raw)
 
 
-def _fetch_models(bearer: str) -> list[str]:
+def _fetch_models(bearer: str) -> List[str]:
     parsed = _http_json("GET", MODELS_URL, bearer)
     data = parsed.get("data", [])
     model_ids = [item.get("id", "") for item in data if isinstance(item, dict)]
@@ -356,7 +357,7 @@ def _create_code_challenge(verifier: str) -> str:
 
 def _finish_oauth_flow(
     token_url: str,
-    client_id: str | None,
+    client_id: Optional[str],
     redirect_uri: str,
     expected_state: str,
     code_verifier: str,
@@ -376,7 +377,7 @@ def _finish_oauth_flow(
     return OAuthResult(access_token=token, state=returned_state)
 
 
-def _wait_for_callback_code(redirect_uri: str, timeout_s: int) -> tuple[str, str]:
+def _wait_for_callback_code(redirect_uri: str, timeout_s: int) -> Tuple[str, str]:
     parsed_redirect = parse.urlparse(redirect_uri)
     result = {"code": None, "state": None}
 
@@ -412,7 +413,7 @@ def _wait_for_callback_code(redirect_uri: str, timeout_s: int) -> tuple[str, str
     return str(result["code"]), str(result["state"] or "")
 
 
-def _exchange_oauth_token(token_url: str, client_id: str | None, code: str, redirect_uri: str, code_verifier: str) -> str:
+def _exchange_oauth_token(token_url: str, client_id: Optional[str], code: str, redirect_uri: str, code_verifier: str) -> str:
     payload = {
         "grant_type": "authorization_code",
         "code": code,

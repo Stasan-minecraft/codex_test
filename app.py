@@ -9,7 +9,7 @@ import tkinter as tk
 import webbrowser
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from tkinter import messagebox, scrolledtext, ttk
+from tkinter import messagebox, scrolledtext, simpledialog, ttk
 from typing import Any, Dict, List, Optional, Tuple
 from urllib import error, parse, request
 
@@ -70,6 +70,7 @@ class CodexWindowsApp:
         self.oauth_token = tk.StringVar(value=os.getenv("OPENAI_OAUTH_TOKEN", ""))
         self.model = tk.StringVar(value=os.getenv("OPENAI_MODEL", DEFAULT_MODEL))
         self.status = tk.StringVar(value="Ready")
+        self.oauth_client_id = tk.StringVar(value=self.cfg.oauth_client_id)
 
         self._configure_theme()
         self._build_ui()
@@ -103,9 +104,13 @@ class CodexWindowsApp:
         self.oauth_btn = ttk.Button(cred, text="Login with OpenAI", style="Accent.TButton", command=self.start_oauth)
         self.oauth_btn.grid(row=0, column=2, sticky="w")
 
-        ttk.Label(cred, text="API key (fallback)", style="Sub.TLabel").grid(row=1, column=0, sticky="w", pady=(8, 0))
-        ttk.Entry(cred, textvariable=self.api_key, show="*", width=70).grid(row=1, column=1, sticky="ew", padx=8, pady=(8, 0))
-        ttk.Button(cred, text="Clear tokens", command=self.clear_tokens).grid(row=1, column=2, sticky="w", pady=(8, 0))
+        ttk.Label(cred, text="OAuth client id", style="Sub.TLabel").grid(row=1, column=0, sticky="w", pady=(8, 0))
+        ttk.Entry(cred, textvariable=self.oauth_client_id, width=70).grid(row=1, column=1, sticky="ew", padx=8, pady=(8, 0))
+        ttk.Label(cred, text="(required by many OAuth setups)", style="Sub.TLabel").grid(row=1, column=2, sticky="w", pady=(8, 0))
+
+        ttk.Label(cred, text="API key (fallback)", style="Sub.TLabel").grid(row=2, column=0, sticky="w", pady=(8, 0))
+        ttk.Entry(cred, textvariable=self.api_key, show="*", width=70).grid(row=2, column=1, sticky="ew", padx=8, pady=(8, 0))
+        ttk.Button(cred, text="Clear tokens", command=self.clear_tokens).grid(row=2, column=2, sticky="w", pady=(8, 0))
         cred.columnconfigure(1, weight=1)
 
         main = ttk.LabelFrame(outer, text="Model + Prompt", padding=10)
@@ -162,6 +167,8 @@ class CodexWindowsApp:
             style="Sub.TLabel",
         ).pack(fill=tk.X, pady=(8, 0))
 
+        self.progress = ttk.Progressbar(outer, mode="indeterminate")
+        self.progress.pack(fill=tk.X, pady=(4, 0))
         ttk.Label(outer, textvariable=self.status, style="Sub.TLabel").pack(fill=tk.X, pady=(4, 0))
 
     def _bind_shortcuts(self) -> None:
@@ -184,6 +191,10 @@ class CodexWindowsApp:
         self.root.after(0, lambda: self.run_btn.config(state=state))
         self.root.after(0, lambda: self.oauth_btn.config(state=state))
         self.root.after(0, lambda: self.refresh_models_btn.config(state=state))
+        if busy:
+            self.root.after(0, lambda: self.progress.start(10))
+        else:
+            self.root.after(0, self.progress.stop)
 
     def clear_tokens(self) -> None:
         self.oauth_token.set("")
@@ -271,6 +282,19 @@ class CodexWindowsApp:
             self._set_busy(False)
 
     def start_oauth(self) -> None:
+        client_id = self.oauth_client_id.get().strip()
+        if not client_id:
+            client_id = simpledialog.askstring(
+                "OAuth Client ID",
+                "Введи OPENAI OAuth Client ID (потрібно для авторизації):",
+                parent=self.root,
+            ) or ""
+            client_id = client_id.strip()
+            if not client_id:
+                messagebox.showerror("Missing OAuth client id", "OAuth client id required by auth server.")
+                return
+            self.oauth_client_id.set(client_id)
+
         self._set_busy(True)
         self.root.after(0, lambda: self.oauth_btn.config(text="Waiting OAuth..."))
         self._set_status("OAuth login started...")
@@ -290,8 +314,9 @@ class CodexWindowsApp:
                 "code_challenge": challenge,
                 "code_challenge_method": "S256",
             }
-            if self.cfg.oauth_client_id:
-                auth_params["client_id"] = self.cfg.oauth_client_id
+            client_id = self.oauth_client_id.get().strip()
+            if client_id:
+                auth_params["client_id"] = client_id
 
             launch_url = f"{self.cfg.oauth_auth_url}?{parse.urlencode(auth_params)}"
             self._log("[OAuth] Opening browser for OpenAI sign-in...")
@@ -302,7 +327,7 @@ class CodexWindowsApp:
 
             oauth = _finish_oauth_flow(
                 token_url=self.cfg.oauth_token_url,
-                client_id=self.cfg.oauth_client_id or None,
+                client_id=client_id or None,
                 redirect_uri=self.cfg.oauth_redirect_uri,
                 expected_state=state,
                 code_verifier=verifier,
@@ -318,7 +343,10 @@ class CodexWindowsApp:
                 self.root.after(0, lambda: self.model.set(ordered[0]))
             self._set_status("OAuth login successful")
         except Exception as exc:
-            self._log(f"[OAuth][ERROR] {exc}")
+            msg = str(exc)
+            self._log(f"[OAuth][ERROR] {msg}")
+            if "missing_required_parameter" in msg:
+                self._log("[OAuth] Схоже, потрібен client_id. Вкажи його у полі OAuth client id і спробуй ще раз.")
             self._set_status("OAuth login failed")
         finally:
             self.root.after(0, lambda: self.oauth_btn.config(text="Login with OpenAI"))

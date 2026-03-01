@@ -13,13 +13,13 @@
 ## Швидкий старт (Windows)
 
 1. Встанови Python 3.10+.
-2. Один раз задай OAuth client id:
-   - `setx OPENAI_OAUTH_CLIENT_ID "your_client_id_here"`
-3. Запусти додаток:
+2. Запусти додаток:
    - `run_windows.bat`
-4. Натисни `Login with OpenAI`, залогінься в браузері.
-5. Натисни `Refresh models` (або після OAuth список оновиться автоматично).
-6. Пиши prompt і тисни `Run`.
+3. Натисни `Login with OpenAI`, залогінься в браузері.
+4. Натисни `Refresh models` (або після OAuth список оновиться автоматично).
+5. Пиши prompt і тисни `Run`.
+
+> `OPENAI_OAUTH_CLIENT_ID` тепер **не обов'язковий**: додаток працює в auto-mode і передає `client_id` лише якщо він заданий.
 
 ## Моделі
 
@@ -32,6 +32,7 @@
 - `OPENAI_API_KEY`
 - `OPENAI_OAUTH_TOKEN`
 - `OPENAI_MODEL`
+- `OPENAI_OAUTH_CLIENT_ID` (опціонально; додається автоматично, якщо задано)
 - `OPENAI_OAUTH_AUTH_URL` (default: `https://auth.openai.com/oauth/authorize`)
 - `OPENAI_OAUTH_TOKEN_URL` (default: `https://auth.openai.com/oauth/token`)
 - `OPENAI_OAUTH_SCOPES` (default: `openid profile email`)

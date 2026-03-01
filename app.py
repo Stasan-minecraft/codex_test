@@ -29,7 +29,7 @@ MODEL_FALLBACK = [
     "o4-mini",
 ]
 
-# OAuth defaults. Client ID must be provided via env.
+# OAuth defaults. Client ID optional (auto mode).
 OAUTH_CLIENT_ID = os.getenv("OPENAI_OAUTH_CLIENT_ID", "").strip()
 OAUTH_AUTH_URL = os.getenv("OPENAI_OAUTH_AUTH_URL", "https://auth.openai.com/oauth/authorize").strip()
 OAUTH_TOKEN_URL = os.getenv("OPENAI_OAUTH_TOKEN_URL", "https://auth.openai.com/oauth/token").strip()
@@ -254,13 +254,6 @@ class CodexWindowsApp:
             self._set_busy(False)
 
     def start_oauth(self) -> None:
-        if not OAUTH_CLIENT_ID:
-            messagebox.showerror(
-                "Missing OAuth client",
-                "Set OPENAI_OAUTH_CLIENT_ID in Windows environment variables and restart app.",
-            )
-            return
-
         self._set_busy(True)
         self.root.after(0, lambda: self.oauth_btn.config(text="Waiting OAuth..."))
         self._set_status("OAuth login started...")
@@ -273,20 +266,21 @@ class CodexWindowsApp:
             state = secrets.token_urlsafe(24)
             auth_params = {
                 "response_type": "code",
-                "client_id": OAUTH_CLIENT_ID,
                 "redirect_uri": OAUTH_REDIRECT_URI,
                 "scope": OAUTH_SCOPES,
                 "state": state,
                 "code_challenge": challenge,
                 "code_challenge_method": "S256",
             }
+            if OAUTH_CLIENT_ID:
+                auth_params["client_id"] = OAUTH_CLIENT_ID
             launch_url = f"{OAUTH_AUTH_URL}?{parse.urlencode(auth_params)}"
             self._log("[OAuth] Opening browser for OpenAI sign-in...")
             webbrowser.open(launch_url)
 
             oauth = _finish_oauth_flow(
                 token_url=OAUTH_TOKEN_URL,
-                client_id=OAUTH_CLIENT_ID,
+                client_id=OAUTH_CLIENT_ID or None,
                 redirect_uri=OAUTH_REDIRECT_URI,
                 expected_state=state,
                 code_verifier=verifier,
@@ -362,7 +356,7 @@ def _create_code_challenge(verifier: str) -> str:
 
 def _finish_oauth_flow(
     token_url: str,
-    client_id: str,
+    client_id: str | None,
     redirect_uri: str,
     expected_state: str,
     code_verifier: str,
@@ -418,14 +412,15 @@ def _wait_for_callback_code(redirect_uri: str, timeout_s: int) -> tuple[str, str
     return str(result["code"]), str(result["state"] or "")
 
 
-def _exchange_oauth_token(token_url: str, client_id: str, code: str, redirect_uri: str, code_verifier: str) -> str:
+def _exchange_oauth_token(token_url: str, client_id: str | None, code: str, redirect_uri: str, code_verifier: str) -> str:
     payload = {
         "grant_type": "authorization_code",
-        "client_id": client_id,
         "code": code,
         "redirect_uri": redirect_uri,
         "code_verifier": code_verifier,
     }
+    if client_id:
+        payload["client_id"] = client_id
     req = request.Request(token_url, data=parse.urlencode(payload).encode("utf-8"), method="POST")
     req.add_header("Content-Type", "application/x-www-form-urlencoded")
 

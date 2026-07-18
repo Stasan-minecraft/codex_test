@@ -31,10 +31,12 @@ processResources {
 // Compatibility correction for the Yarn 1.16.5 Ingredient client stack accessor.
 tasks.register('fixYarn1165Sources') {
     doLast {
-        def file = file('src/main/java/ua/credesasq/autocraft/client/gui/ItemSelectScreen.java')
-        if (file.exists()) {
-            def corrected = file.getText('UTF-8').replace('getMatchingStacks()', 'getMatchingStacksClient()')
-            file.write(corrected, 'UTF-8')
+        fileTree('src/main/java').matching { include '**/*.java' }.files.each { sourceFile ->
+            def original = sourceFile.getText('UTF-8')
+            def corrected = original.replace('getMatchingStacks()', 'getMatchingStacksClient()')
+            if (corrected != original) {
+                sourceFile.write(corrected, 'UTF-8')
+            }
         }
     }
 }

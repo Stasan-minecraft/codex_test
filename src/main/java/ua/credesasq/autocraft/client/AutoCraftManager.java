@@ -34,6 +34,9 @@ public final class AutoCraftManager {
     private boolean stopRequested;
     private int pendingTakeAmount;
     private int pendingResultCount;
+    private int inventoryCountBeforeTake;
+    private int takeWaitTicks;
+    private int takeRetries;
     private String stopReason = "Зупинено";
     private String status = "Готово до роботи";
 
@@ -50,6 +53,9 @@ public final class AutoCraftManager {
         this.stopRequested = false;
         this.pendingTakeAmount = 0;
         this.pendingResultCount = 0;
+        this.inventoryCountBeforeTake = 0;
+        this.takeWaitTicks = 0;
+        this.takeRetries = 0;
         this.actions.clear();
         this.status = amount == 0 ? "Автокрафт: без ліміту" : "Автокрафт: 0 / " + amount;
     }
@@ -70,6 +76,8 @@ public final class AutoCraftManager {
         this.waitingForTake = false;
         this.pendingTakeAmount = 0;
         this.pendingResultCount = 0;
+        this.takeWaitTicks = 0;
+        this.takeRetries = 0;
         this.status = reason;
     }
 
@@ -115,32 +123,16 @@ public final class AutoCraftManager {
             return;
         }
 
-        if (cooldown > 0) {
-            cooldown--;
-            return;
-        }
-
         CraftingScreenHandler handler = (CraftingScreenHandler) client.player.currentScreenHandler;
 
         if (waitingForTake) {
-            ItemStack now = handler.getSlot(0).getStack();
-            int nowCount = now.isEmpty() ? 0 : now.getCount();
-            int moved = Math.max(0, pendingResultCount - nowCount);
-            if (moved <= 0) {
-                stop("Стоп: інвентар заповнений");
-                notifyPlayer(client.player, status);
-                return;
-            }
-            craftedAmount += Math.min(pendingTakeAmount, moved);
-            waitingForTake = false;
-            pendingTakeAmount = 0;
-            pendingResultCount = 0;
-            updateProgress();
-            if (targetAmount > 0 && craftedAmount >= targetAmount) {
-                stop("Готово: скрафчено " + craftedAmount);
-                notifyPlayer(client.player, status);
-                return;
-            }
+            tickWaitingForTake(client, handler);
+            return;
+        }
+
+        if (cooldown > 0) {
+            cooldown--;
+            return;
         }
 
         if (!actions.isEmpty()) {
@@ -174,13 +166,8 @@ public final class AutoCraftManager {
         }
 
         ItemStack result = handler.getSlot(0).getStack();
-        if (!result.isEmpty() && ItemStack.areItemsEqualIgnoreDamage(result, recipe.getOutput())) {
-            int resultCount = result.getCount();
-            pendingTakeAmount = resultCount;
-            pendingResultCount = resultCount;
-            waitingForTake = true;
-            client.interactionManager.clickSlot(handler.syncId, 0, 0, SlotActionType.QUICK_MOVE, client.player);
-            cooldown = 4;
+        if (!result.isEmpty() && sameItem(result, recipe.getOutput())) {
+            beginTakingResult(client, handler, result);
             return;
         }
 
@@ -209,6 +196,91 @@ public final class AutoCraftManager {
             actions.addLast(new ClickAction(placement.sourceSlot, 0, SlotActionType.PICKUP));
         }
         status = "Розкладаю інгредієнти...";
+    }
+
+    private void beginTakingResult(MinecraftClient client, CraftingScreenHandler handler, ItemStack result) {
+        pendingTakeAmount = result.getCount();
+        pendingResultCount = result.getCount();
+        inventoryCountBeforeTake = countOutputInInventory(handler, recipe.getOutput());
+        takeWaitTicks = 0;
+        takeRetries = 0;
+        waitingForTake = true;
+        status = "Забираю результат...";
+        client.interactionManager.clickSlot(handler.syncId, 0, 0, SlotActionType.QUICK_MOVE, client.player);
+    }
+
+    private void tickWaitingForTake(MinecraftClient client, CraftingScreenHandler handler) {
+        takeWaitTicks++;
+
+        ItemStack currentResult = handler.getSlot(0).getStack();
+        int currentResultCount = currentResult.isEmpty() || !sameItem(currentResult, recipe.getOutput())
+                ? 0
+                : currentResult.getCount();
+        int inventoryNow = countOutputInInventory(handler, recipe.getOutput());
+        int gained = Math.max(0, inventoryNow - inventoryCountBeforeTake);
+        boolean resultChanged = currentResultCount < pendingResultCount;
+
+        if (gained > 0 || resultChanged) {
+            int craftedNow = gained > 0 ? gained : Math.max(1, pendingResultCount - currentResultCount);
+            craftedAmount += Math.min(pendingTakeAmount, craftedNow);
+            waitingForTake = false;
+            pendingTakeAmount = 0;
+            pendingResultCount = 0;
+            takeWaitTicks = 0;
+            takeRetries = 0;
+            cooldown = 2;
+            updateProgress();
+
+            if (targetAmount > 0 && craftedAmount >= targetAmount) {
+                stop("Готово: скрафчено " + craftedAmount);
+                notifyPlayer(client.player, status);
+            }
+            return;
+        }
+
+        if (takeWaitTicks % 10 == 0 && takeRetries < 5) {
+            takeRetries++;
+            status = "Очікую сервер... спроба " + takeRetries + "/5";
+            client.interactionManager.clickSlot(handler.syncId, 0, 0, SlotActionType.QUICK_MOVE, client.player);
+            return;
+        }
+
+        if (takeWaitTicks >= 65) {
+            if (!hasRoomFor(handler, recipe.getOutput())) {
+                stop("Стоп: у інвентарі справді немає місця");
+            } else {
+                stop("Стоп: сервер не підтвердив переміщення результату");
+            }
+            notifyPlayer(client.player, status);
+        }
+    }
+
+    private static int countOutputInInventory(ScreenHandler handler, ItemStack output) {
+        int count = 0;
+        for (int slotId = 10; slotId < handler.slots.size(); slotId++) {
+            ItemStack stack = handler.getSlot(slotId).getStack();
+            if (!stack.isEmpty() && sameItem(stack, output)) {
+                count += stack.getCount();
+            }
+        }
+        return count;
+    }
+
+    private static boolean hasRoomFor(ScreenHandler handler, ItemStack output) {
+        for (int slotId = 10; slotId < handler.slots.size(); slotId++) {
+            ItemStack stack = handler.getSlot(slotId).getStack();
+            if (stack.isEmpty()) {
+                return true;
+            }
+            if (sameItem(stack, output) && stack.getCount() < stack.getMaxCount()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean sameItem(ItemStack left, ItemStack right) {
+        return ItemStack.areItemsEqualIgnoreDamage(left, right) && ItemStack.areTagsEqual(left, right);
     }
 
     private void queueGridCleanup(CraftingScreenHandler handler) {

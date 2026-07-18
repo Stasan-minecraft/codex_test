@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - autocraft-fabric-1.16.5
+  pull_request:
+    branches:
+      - autocraft-fabric-1.16.5
   workflow_dispatch:
 
 jobs:

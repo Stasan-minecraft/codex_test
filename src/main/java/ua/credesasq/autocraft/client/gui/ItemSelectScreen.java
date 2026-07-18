@@ -88,7 +88,7 @@ public final class ItemSelectScreen extends Screen {
 
     private static int ingredientCount(Recipe<?> recipe) {
         int count = 0;
-        for (net.minecraft.recipe.Ingredient ingredient : recipe.getPreviewInputs()) {
+        for (net.minecraft.recipe.Ingredient ingredient : recipe.getIngredients()) {
             if (!ingredient.isEmpty()) count++;
         }
         return count;

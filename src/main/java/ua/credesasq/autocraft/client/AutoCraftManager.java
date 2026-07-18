@@ -31,8 +31,10 @@ public final class AutoCraftManager {
     private int cooldown;
     private boolean active;
     private boolean waitingForTake;
+    private boolean stopRequested;
     private int pendingTakeAmount;
     private int pendingResultCount;
+    private String stopReason = "Зупинено";
     private String status = "Готово до роботи";
 
     private AutoCraftManager() {
@@ -45,21 +47,38 @@ public final class AutoCraftManager {
         this.cooldown = 4;
         this.active = true;
         this.waitingForTake = false;
+        this.stopRequested = false;
         this.pendingTakeAmount = 0;
         this.pendingResultCount = 0;
         this.actions.clear();
         this.status = amount == 0 ? "Автокрафт: без ліміту" : "Автокрафт: 0 / " + amount;
     }
 
+    public void requestStop(String reason) {
+        if (!active) {
+            return;
+        }
+        this.stopRequested = true;
+        this.stopReason = reason == null || reason.isEmpty() ? "Зупинено вручну" : reason;
+        this.status = "Безпечна зупинка...";
+    }
+
     public void stop(String reason) {
         this.active = false;
+        this.stopRequested = false;
         this.actions.clear();
         this.waitingForTake = false;
+        this.pendingTakeAmount = 0;
+        this.pendingResultCount = 0;
         this.status = reason;
     }
 
     public boolean isActive() {
         return active;
+    }
+
+    public boolean isStopping() {
+        return active && stopRequested;
     }
 
     public int getCraftedAmount() {
@@ -72,6 +91,10 @@ public final class AutoCraftManager {
 
     public String getStatus() {
         return status;
+    }
+
+    public ItemStack getSelectedOutput() {
+        return recipe == null ? ItemStack.EMPTY : recipe.getOutput();
     }
 
     public void tick(MinecraftClient client) {
@@ -133,6 +156,23 @@ public final class AutoCraftManager {
             return;
         }
 
+        if (stopRequested) {
+            if (!client.player.inventory.getCursorStack().isEmpty()) {
+                stop("Зупинено: поклади предмет із курсора в інвентар");
+                notifyPlayer(client.player, status);
+                return;
+            }
+            if (hasItemsInGrid(handler)) {
+                queueGridCleanup(handler);
+                status = "Повертаю інгредієнти в інвентар...";
+                return;
+            }
+            String reason = stopReason;
+            stop(reason);
+            notifyPlayer(client.player, reason);
+            return;
+        }
+
         ItemStack result = handler.getSlot(0).getStack();
         if (!result.isEmpty() && ItemStack.areItemsEqualIgnoreDamage(result, recipe.getOutput())) {
             int resultCount = result.getCount();
@@ -145,11 +185,7 @@ public final class AutoCraftManager {
         }
 
         if (hasItemsInGrid(handler)) {
-            for (int slot = 1; slot <= 9; slot++) {
-                if (handler.getSlot(slot).hasStack()) {
-                    actions.addLast(new ClickAction(slot, 0, SlotActionType.QUICK_MOVE));
-                }
-            }
+            queueGridCleanup(handler);
             status = "Очищення сітки крафту...";
             return;
         }
@@ -173,6 +209,14 @@ public final class AutoCraftManager {
             actions.addLast(new ClickAction(placement.sourceSlot, 0, SlotActionType.PICKUP));
         }
         status = "Розкладаю інгредієнти...";
+    }
+
+    private void queueGridCleanup(CraftingScreenHandler handler) {
+        for (int slot = 1; slot <= 9; slot++) {
+            if (handler.getSlot(slot).hasStack()) {
+                actions.addLast(new ClickAction(slot, 0, SlotActionType.QUICK_MOVE));
+            }
+        }
     }
 
     private void updateProgress() {

@@ -161,7 +161,7 @@ public final class AutoCraftManager {
             return;
         }
 
-        if (!handler.getCursorStack().isEmpty()) {
+        if (!client.player.inventory.getCursorStack().isEmpty()) {
             stop("Стоп: звільни предмет із курсора");
             notifyPlayer(client.player, status);
             return;
@@ -193,7 +193,7 @@ public final class AutoCraftManager {
     }
 
     private List<Placement> createPlacementPlan(CraftingScreenHandler handler) {
-        DefaultedList<Ingredient> ingredients = recipe.getPreviewInputs();
+        DefaultedList<Ingredient> ingredients = recipe.getIngredients();
         List<IngredientTarget> targets = new ArrayList<>();
 
         if (recipe instanceof ShapedRecipe) {

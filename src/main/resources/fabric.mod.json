@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "autocraft",
+  "version": "${version}",
+  "name": "AutoCraft",
+  "description": "Автоматичний крафт у верстаку з пошуком, кількістю та кнопкою стоп.",
+  "authors": ["CREDESASQ"],
+  "contact": {},
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "ua.credesasq.autocraft.client.AutoCraftClient"
+    ]
+  },
+  "mixins": [
+    "autocraft.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.14.0",
+    "minecraft": "1.16.5",
+    "java": ">=8"
+  }
+}

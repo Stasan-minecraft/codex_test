@@ -6,6 +6,7 @@ import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.item.ItemStack;
 import net.minecraft.screen.CraftingScreenHandler;
 import net.minecraft.text.LiteralText;
 import net.minecraft.text.Text;
@@ -28,15 +29,17 @@ public abstract class CraftingScreenMixin extends HandledScreen<CraftingScreenHa
 
     @Inject(method = "init", at = @At("TAIL"))
     private void autocraft$addButton(CallbackInfo ci) {
+        int buttonX = x + (backgroundWidth - 96) / 2;
+        int buttonY = y + backgroundHeight + 3;
         autocraft$button = addButton(new ButtonWidget(
-                x + 53,
-                y + backgroundHeight + 3,
-                70,
+                buttonX,
+                buttonY,
+                96,
                 20,
-                new LiteralText(AutoCraftManager.INSTANCE.isActive() ? "СТОП" : "Автокрафт"),
+                new LiteralText(autocraft$getButtonText()),
                 button -> {
                     if (AutoCraftManager.INSTANCE.isActive()) {
-                        AutoCraftManager.INSTANCE.stop("Зупинено вручну");
+                        AutoCraftManager.INSTANCE.requestStop("Зупинено вручну");
                     } else {
                         MinecraftClient.getInstance().openScreen(new ItemSelectScreen((CraftingScreen) (Object) this));
                     }
@@ -44,18 +47,34 @@ public abstract class CraftingScreenMixin extends HandledScreen<CraftingScreenHa
         ));
     }
 
+    @Unique
+    private String autocraft$getButtonText() {
+        if (AutoCraftManager.INSTANCE.isStopping()) {
+            return "ЗУПИНЯЮ...";
+        }
+        return AutoCraftManager.INSTANCE.isActive() ? "СТОП" : "АВТОКРАФТ";
+    }
+
     @Inject(method = "tick", at = @At("TAIL"))
     private void autocraft$updateButton(CallbackInfo ci) {
         if (autocraft$button != null) {
-            autocraft$button.setMessage(new LiteralText(AutoCraftManager.INSTANCE.isActive() ? "СТОП" : "Автокрафт"));
+            autocraft$button.setMessage(new LiteralText(autocraft$getButtonText()));
+            autocraft$button.active = !AutoCraftManager.INSTANCE.isStopping();
         }
     }
 
     @Inject(method = "render", at = @At("TAIL"))
     private void autocraft$renderStatus(MatrixStack matrices, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         String status = AutoCraftManager.INSTANCE.getStatus();
+        int statusY = y + backgroundHeight + 27;
         if (status != null && !status.isEmpty()) {
-            textRenderer.drawWithShadow(matrices, status, x, y + backgroundHeight + 26, AutoCraftManager.INSTANCE.isActive() ? 0x66FF99 : 0xD7E7F7);
+            textRenderer.drawWithShadow(matrices, status, x, statusY,
+                    AutoCraftManager.INSTANCE.isActive() ? 0x66FF99 : 0xD7E7F7);
+        }
+
+        ItemStack selected = AutoCraftManager.INSTANCE.getSelectedOutput();
+        if (AutoCraftManager.INSTANCE.isActive() && !selected.isEmpty()) {
+            itemRenderer.renderInGuiWithOverrides(selected, x + backgroundWidth - 17, statusY - 5);
         }
     }
 }

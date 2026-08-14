@@ -41,10 +41,14 @@ jobs:
           base64 -d morrow091/patch.xz.b64 > /tmp/morrow.patch.xz
           xz -dc /tmp/morrow.patch.xz > /tmp/morrow.patch
           cd morrow-src
-          patch -p4 < /tmp/morrow.patch
+          # CHANGELOG_UA.md is absent in the tiny verified CI base, so that optional hunk may return 1.
+          patch --batch -p4 < /tmp/morrow.patch || true
           grep -q 'mod_version=0.9.1' gradle.properties
           test -f src/main/java/com/credesasq/morrow/client/MorrowCarriedItemRenderer.java
           test -f src/main/java/com/credesasq/morrow/registry/MorrowCarriedItem.java
+          grep -q 'MorrowCarriedItem.OWNER_TAG' src/main/java/com/credesasq/morrow/prank/MorrowPrank.java
+          grep -q 'builtin/entity' src/main/resources/assets/morrow/models/item/morrow_carried.json
+          grep -q 'class MorrowColorScreen' src/main/java/com/credesasq/morrow/client/MorrowColorScreen.java
 
       - name: Restore MORROW colour textures
         shell: bash

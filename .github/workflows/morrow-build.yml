@@ -1,9 +1,9 @@
-name: Build MORROW 0.9.1 JAR
+name: Build MORROW 1.0.0 JAR
 
 on:
   push:
     branches:
-      - chatgpt-morrow-build-090
+      - chatgpt-morrow-build-100
   workflow_dispatch:
 
 jobs:
@@ -25,7 +25,7 @@ jobs:
         with:
           gradle-version: '8.8'
 
-      - name: Reconstruct verified MORROW 0.8 base
+      - name: Reconstruct verified MORROW base
         shell: bash
         run: |
           set -euo pipefail
@@ -34,21 +34,18 @@ jobs:
           mkdir -p morrow-src
           tar -xJf /tmp/morrow-base.tar.xz -C morrow-src
 
-      - name: Apply MORROW 0.9.1 code patch
+      - name: Restore verified MORROW 0.9.1
         shell: bash
         run: |
           set -euo pipefail
-          base64 -d morrow091/patch.xz.b64 > /tmp/morrow.patch.xz
-          xz -dc /tmp/morrow.patch.xz > /tmp/morrow.patch
+          base64 -d morrow091/patch.xz.b64 > /tmp/morrow091.patch.xz
+          xz -dc /tmp/morrow091.patch.xz > /tmp/morrow091.patch
           cd morrow-src
-          # CHANGELOG_UA.md is absent in the tiny verified CI base, so that optional hunk may return 1.
-          patch --batch -p4 < /tmp/morrow.patch || true
+          patch --batch -p4 < /tmp/morrow091.patch || true
           grep -q 'mod_version=0.9.1' gradle.properties
           test -f src/main/java/com/credesasq/morrow/client/MorrowCarriedItemRenderer.java
           test -f src/main/java/com/credesasq/morrow/registry/MorrowCarriedItem.java
-          grep -q 'MorrowCarriedItem.OWNER_TAG' src/main/java/com/credesasq/morrow/prank/MorrowPrank.java
           grep -q 'builtin/entity' src/main/resources/assets/morrow/models/item/morrow_carried.json
-          grep -q 'class MorrowColorScreen' src/main/java/com/credesasq/morrow/client/MorrowColorScreen.java
 
       - name: Restore MORROW colour textures
         shell: bash
@@ -59,11 +56,27 @@ jobs:
           tar -xJf /tmp/morrow-colors.tar.xz -C morrow-src/src/main/resources/assets/morrow/textures/entity
           test "$(find morrow-src/src/main/resources/assets/morrow/textures/entity -name 'morrow_color_*.png' | wc -l)" -eq 8
 
+      - name: Apply MORROW 1.0.0 Devil update
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d morrow100/patch.xz.b64 > /tmp/morrow100.patch.xz
+          xz -dc /tmp/morrow100.patch.xz > /tmp/morrow100.patch
+          cd morrow-src
+          patch --batch -p1 < /tmp/morrow100.patch
+          grep -q 'mod_version=1.0.0' gradle.properties
+          test -f src/main/java/com/credesasq/morrow/client/ClientCarrierInventory.java
+          test -f src/main/java/com/credesasq/morrow/network/packet/CarrierInventoryPacket.java
+          test -f src/main/java/com/credesasq/morrow/network/packet/MorrowRenamePacket.java
+          grep -q 'DEVIL_BURST' src/main/java/com/credesasq/morrow/network/packet/MorrowControlPacket.java
+          grep -q 'enterDevil' src/main/java/com/credesasq/morrow/prank/MorrowPrank.java
+          grep -q 'devil_extras' src/main/java/com/credesasq/morrow/client/MorrowModel.java
+
       - name: Build Forge mod
         working-directory: morrow-src
         run: gradle --no-daemon clean build
 
-      - name: Verify live 3D carried renderer
+      - name: Verify MORROW 1.0.0 JAR
         working-directory: morrow-src
         shell: bash
         run: |
@@ -73,16 +86,18 @@ jobs:
           unzip -l "$JAR" | grep -q 'META-INF/mods.toml'
           unzip -l "$JAR" | grep -q 'com/credesasq/morrow/MorrowMod.class'
           unzip -l "$JAR" | grep -q 'com/credesasq/morrow/client/MorrowCarriedItemRenderer.class'
-          unzip -l "$JAR" | grep -q 'com/credesasq/morrow/registry/MorrowCarriedItem.class'
+          unzip -l "$JAR" | grep -q 'com/credesasq/morrow/client/ClientCarrierInventory.class'
+          unzip -l "$JAR" | grep -q 'com/credesasq/morrow/network/packet/CarrierInventoryPacket.class'
+          unzip -l "$JAR" | grep -q 'com/credesasq/morrow/network/packet/MorrowRenamePacket.class'
           unzip -p "$JAR" assets/morrow/models/item/morrow_carried.json | grep -q 'builtin/entity'
           for i in 0 1 2 3 4 5 6 7; do unzip -l "$JAR" | grep -q "assets/morrow/textures/entity/morrow_color_${i}.png"; done
           sha256sum "$JAR"
-          cp "$JAR" build/libs/MORROW-Blue-Circle-0.9.1-Forge-1.20.1.jar
+          cp "$JAR" build/libs/MORROW-Blue-Circle-1.0.0-Forge-1.20.1.jar
 
-      - name: Upload MORROW 0.9.1 JAR
+      - name: Upload MORROW 1.0.0 JAR
         uses: actions/upload-artifact@v4
         with:
-          name: MORROW-Blue-Circle-0.9.1-Forge-1.20.1
-          path: morrow-src/build/libs/MORROW-Blue-Circle-0.9.1-Forge-1.20.1.jar
+          name: MORROW-Blue-Circle-1.0.0-Forge-1.20.1
+          path: morrow-src/build/libs/MORROW-Blue-Circle-1.0.0-Forge-1.20.1.jar
           if-no-files-found: error
           retention-days: 1

@@ -63,7 +63,9 @@ jobs:
           base64 -d morrow100/patch.xz.b64 > /tmp/morrow100.patch.xz
           xz -dc /tmp/morrow100.patch.xz > /tmp/morrow100.patch
           cd morrow-src
-          patch --batch -p1 < /tmp/morrow100.patch
+          patch --batch -p1 < /tmp/morrow100.patch || true
+          cp ../morrow100/ClientPrankRenderer.java src/main/java/com/credesasq/morrow/client/ClientPrankRenderer.java
+          rm -f src/main/java/com/credesasq/morrow/client/ClientPrankRenderer.java.rej
           grep -q 'mod_version=1.0.0' gradle.properties
           test -f src/main/java/com/credesasq/morrow/client/ClientCarrierInventory.java
           test -f src/main/java/com/credesasq/morrow/network/packet/CarrierInventoryPacket.java
@@ -71,6 +73,7 @@ jobs:
           grep -q 'DEVIL_BURST' src/main/java/com/credesasq/morrow/network/packet/MorrowControlPacket.java
           grep -q 'enterDevil' src/main/java/com/credesasq/morrow/prank/MorrowPrank.java
           grep -q 'devil_extras' src/main/java/com/credesasq/morrow/client/MorrowModel.java
+          grep -q 'FULL INVENTORY LINK' src/main/java/com/credesasq/morrow/client/ClientPrankRenderer.java
 
       - name: Build Forge mod
         working-directory: morrow-src

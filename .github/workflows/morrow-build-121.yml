@@ -1,0 +1,92 @@
+name: Build MORROW 1.2.1 JAR
+
+on:
+  push:
+    branches:
+      - chatgpt-morrow-build-121
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.8
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.8'
+
+      - name: Reconstruct verified MORROW 1.2.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat morrow-ci/part_* > /tmp/morrow-base.b64
+          base64 -d /tmp/morrow-base.b64 > /tmp/morrow-base.tar.xz
+          mkdir -p morrow-src
+          tar -xJf /tmp/morrow-base.tar.xz -C morrow-src
+          base64 -d morrow091/patch.xz.b64 > /tmp/morrow091.patch.xz
+          xz -dc /tmp/morrow091.patch.xz > /tmp/morrow091.patch
+          (cd morrow-src && patch --batch -p4 < /tmp/morrow091.patch || true)
+          base64 -d morrow091/colors.tar.xz.b64 > /tmp/morrow-colors.tar.xz
+          mkdir -p morrow-src/src/main/resources/assets/morrow/textures/entity
+          tar -xJf /tmp/morrow-colors.tar.xz -C morrow-src/src/main/resources/assets/morrow/textures/entity
+          base64 -d morrow100/patch.xz.b64 > /tmp/morrow100.patch.xz
+          xz -dc /tmp/morrow100.patch.xz > /tmp/morrow100.patch
+          (cd morrow-src && patch --batch -p1 < /tmp/morrow100.patch || true)
+          cp morrow100/ClientPrankRenderer.java morrow-src/src/main/java/com/credesasq/morrow/client/ClientPrankRenderer.java
+          rm -f morrow-src/src/main/java/com/credesasq/morrow/client/ClientPrankRenderer.java.rej
+          cat morrow110/part_* > /tmp/morrow110-overlay.b64
+          base64 -d /tmp/morrow110-overlay.b64 > /tmp/morrow110-overlay.tar.xz
+          tar -xJf /tmp/morrow110-overlay.tar.xz -C morrow-src
+          cp morrow110/ClientMorrowAudio.java morrow-src/src/main/java/com/credesasq/morrow/client/ClientMorrowAudio.java
+          base64 -d morrow120/patch.xz.b64 > /tmp/morrow120.patch.xz
+          xz -dc /tmp/morrow120.patch.xz > /tmp/morrow120.patch
+          (cd morrow-src && patch --batch -p4 < /tmp/morrow120.patch)
+          grep -q 'mod_version=1.2.0' morrow-src/gradle.properties
+
+      - name: Apply MORROW 1.2.1 chase update
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d morrow121/overlay.tar.xz.b64 > /tmp/morrow121-overlay.tar.xz
+          tar -xJf /tmp/morrow121-overlay.tar.xz -C morrow-src
+          grep -q 'mod_version=1.2.1' morrow-src/gradle.properties
+          grep -q 'TRACK_HUNT = 4' morrow-src/src/main/java/com/credesasq/morrow/audio/MorrowAudioServer.java
+          grep -q 'hasLineOfSight' morrow-src/src/main/java/com/credesasq/morrow/audio/MorrowAudioServer.java
+          grep -q 'hunt_theme' morrow-src/src/main/resources/assets/morrow/sounds.json
+
+      - name: Build Forge mod
+        working-directory: morrow-src
+        run: gradle --no-daemon clean build
+
+      - name: Verify MORROW 1.2.1 JAR
+        working-directory: morrow-src
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*sources*' ! -name '*dev*' | head -1)"
+          test -n "$JAR"
+          unzip -l "$JAR" | grep -q 'META-INF/mods.toml'
+          unzip -l "$JAR" | grep -q 'com/credesasq/morrow/audio/MorrowAudioServer.class'
+          unzip -l "$JAR" | grep -q 'com/credesasq/morrow/client/ClientMorrowAudio.class'
+          unzip -l "$JAR" | grep -q 'com/credesasq/morrow/registry/ModSounds.class'
+          unzip -l "$JAR" | grep -q 'assets/morrow/sounds.json'
+          cp "$JAR" build/libs/MORROW-Blue-Circle-1.2.1-Forge-1.20.1.jar
+          sha256sum build/libs/MORROW-Blue-Circle-1.2.1-Forge-1.20.1.jar
+
+      - name: Upload MORROW 1.2.1 JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: MORROW-Blue-Circle-1.2.1-Forge-1.20.1
+          path: morrow-src/build/libs/MORROW-Blue-Circle-1.2.1-Forge-1.20.1.jar
+          if-no-files-found: error
+          retention-days: 1

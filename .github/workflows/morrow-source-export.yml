@@ -1,1 +1,42 @@
-placeholder
+name: Export MORROW 1.0.0 Source
+
+on:
+  push:
+    branches:
+      - chatgpt-morrow-source-export
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct MORROW 1.0.0 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat morrow-ci/part_* > /tmp/morrow-base.b64
+          base64 -d /tmp/morrow-base.b64 > /tmp/morrow-base.tar.xz
+          mkdir -p morrow-src
+          tar -xJf /tmp/morrow-base.tar.xz -C morrow-src
+          base64 -d morrow091/patch.xz.b64 > /tmp/morrow091.patch.xz
+          xz -dc /tmp/morrow091.patch.xz > /tmp/morrow091.patch
+          (cd morrow-src && patch --batch -p4 < /tmp/morrow091.patch || true)
+          base64 -d morrow091/colors.tar.xz.b64 > /tmp/morrow-colors.tar.xz
+          mkdir -p morrow-src/src/main/resources/assets/morrow/textures/entity
+          tar -xJf /tmp/morrow-colors.tar.xz -C morrow-src/src/main/resources/assets/morrow/textures/entity
+          base64 -d morrow100/patch.xz.b64 > /tmp/morrow100.patch.xz
+          xz -dc /tmp/morrow100.patch.xz > /tmp/morrow100.patch
+          (cd morrow-src && patch --batch -p1 < /tmp/morrow100.patch || true)
+          cp morrow100/ClientPrankRenderer.java morrow-src/src/main/java/com/credesasq/morrow/client/ClientPrankRenderer.java
+          rm -f morrow-src/src/main/java/com/credesasq/morrow/client/ClientPrankRenderer.java.rej
+          test -f morrow-src/src/main/java/com/credesasq/morrow/client/ClientCarrierInventory.java
+          grep -q 'mod_version=1.0.0' morrow-src/gradle.properties
+          tar -czf MORROW-1.0.0-source.tar.gz -C morrow-src .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MORROW-1.0.0-source
+          path: MORROW-1.0.0-source.tar.gz
+          if-no-files-found: error
+          retention-days: 1

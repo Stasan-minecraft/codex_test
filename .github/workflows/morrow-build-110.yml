@@ -53,12 +53,14 @@ jobs:
           cat morrow110/part_* > /tmp/morrow110-overlay.b64
           base64 -d /tmp/morrow110-overlay.b64 > /tmp/morrow110-overlay.tar.xz
           tar -xJf /tmp/morrow110-overlay.tar.xz -C morrow-src
+          cp morrow110/ClientMorrowAudio.java morrow-src/src/main/java/com/credesasq/morrow/client/ClientMorrowAudio.java
           grep -q 'mod_version=1.1.0' morrow-src/gradle.properties
           test -f morrow-src/src/main/java/com/credesasq/morrow/client/SystemTts.java
           test -f morrow-src/src/main/java/com/credesasq/morrow/client/MorrowAudioScreen.java
           test -f morrow-src/src/main/java/com/credesasq/morrow/audio/MorrowAudioServer.java
           test -f morrow-src/src/main/java/com/credesasq/morrow/registry/ModSounds.java
           test -f morrow-src/src/main/resources/assets/morrow/sounds.json
+          grep -q 'requestStop' morrow-src/src/main/java/com/credesasq/morrow/client/ClientMorrowAudio.java
 
       - name: Build Forge mod
         working-directory: morrow-src

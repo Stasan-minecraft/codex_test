@@ -1,0 +1,63 @@
+name: Export MORROW 1.2.1 Source
+
+on:
+  push:
+    branches:
+      - chatgpt-morrow-source-121
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reconstruct MORROW 1.2.1 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat morrow-ci/part_* > /tmp/morrow-base.b64
+          base64 -d /tmp/morrow-base.b64 > /tmp/morrow-base.tar.xz
+          mkdir -p morrow-src
+          tar -xJf /tmp/morrow-base.tar.xz -C morrow-src
+
+          base64 -d morrow091/patch.xz.b64 > /tmp/morrow091.patch.xz
+          xz -dc /tmp/morrow091.patch.xz > /tmp/morrow091.patch
+          (cd morrow-src && patch --batch -p4 < /tmp/morrow091.patch || true)
+
+          base64 -d morrow091/colors.tar.xz.b64 > /tmp/morrow-colors.tar.xz
+          mkdir -p morrow-src/src/main/resources/assets/morrow/textures/entity
+          tar -xJf /tmp/morrow-colors.tar.xz -C morrow-src/src/main/resources/assets/morrow/textures/entity
+
+          base64 -d morrow100/patch.xz.b64 > /tmp/morrow100.patch.xz
+          xz -dc /tmp/morrow100.patch.xz > /tmp/morrow100.patch
+          (cd morrow-src && patch --batch -p1 < /tmp/morrow100.patch || true)
+          cp morrow100/ClientPrankRenderer.java morrow-src/src/main/java/com/credesasq/morrow/client/ClientPrankRenderer.java
+          rm -f morrow-src/src/main/java/com/credesasq/morrow/client/ClientPrankRenderer.java.rej
+
+          cat morrow110/part_* > /tmp/morrow110-overlay.b64
+          base64 -d /tmp/morrow110-overlay.b64 > /tmp/morrow110-overlay.tar.xz
+          tar -xJf /tmp/morrow110-overlay.tar.xz -C morrow-src
+          cp morrow110/ClientMorrowAudio.java morrow-src/src/main/java/com/credesasq/morrow/client/ClientMorrowAudio.java
+
+          base64 -d morrow120/patch.xz.b64 > /tmp/morrow120.patch.xz
+          xz -dc /tmp/morrow120.patch.xz > /tmp/morrow120.patch
+          (cd morrow-src && patch --batch -p4 < /tmp/morrow120.patch)
+
+          base64 -d morrow121/overlay.tar.xz.b64 > /tmp/morrow121-overlay.tar.xz
+          tar -xJf /tmp/morrow121-overlay.tar.xz -C morrow-src
+
+          grep -q 'mod_version=1.2.1' morrow-src/gradle.properties
+          rm -rf morrow-src/.gradle morrow-src/build morrow-src/run
+          find morrow-src -name '*.rej' -delete
+          find morrow-src -name '*.orig' -delete
+          tar -czf MORROW-Blue-Circle-1.2.1-Source.tar.gz -C morrow-src .
+
+      - name: Upload source
+        uses: actions/upload-artifact@v4
+        with:
+          name: MORROW-Blue-Circle-1.2.1-Source
+          path: MORROW-Blue-Circle-1.2.1-Source.tar.gz
+          if-no-files-found: error
+          retention-days: 1
